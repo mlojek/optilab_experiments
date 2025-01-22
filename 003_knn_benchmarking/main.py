@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # hyperparams:
     DIM = args.dim
     POPSIZE = DIM * 2
-    NUM_NEIGHBORS = 10 * DIM
+    NUM_NEIGHBORS = 10 * POPSIZE
     NUM_RUNS = 51
     CALL_BUDGET = 1e4 * DIM
     TOL = 1e-8
