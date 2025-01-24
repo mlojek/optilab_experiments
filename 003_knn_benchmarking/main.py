@@ -21,6 +21,8 @@ if __name__ == "__main__":
     parser.add_argument('--start_from', type=int, default=1, help='Function number to start from.')
     args = parser.parse_args()
 
+    NUM_PROCESSES=16
+
     # hyperparams:
     DIM = args.dim
     POPSIZE = DIM * 2
@@ -43,14 +45,15 @@ if __name__ == "__main__":
 
         cmaes_optimizer = CmaEs(POPSIZE, SIGMA0)
         cmaes_results = cmaes_optimizer.run_optimization(
-            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL
+            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=NUM_PROCESSES
         )
 
         knn_optimizer = KnnCmaEs(POPSIZE, SIGMA0, NUM_NEIGHBORS)
         knn_results = knn_optimizer.run_optimization(
-            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL
+            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=NUM_PROCESSES
         )
 
         dump_to_pickle(
             [cmaes_results, knn_results], f"003_knn_benchmark_{func.name}_{DIM}.pkl"
         )
+        exit(0)
