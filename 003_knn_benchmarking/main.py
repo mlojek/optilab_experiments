@@ -19,9 +19,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("dim", type=int, help="Dimensionality of benchmark functions.")
     parser.add_argument('--start_from', type=int, default=1, help='Function number to start from.')
+    parser.add_argument('--stop_at', type=int, default=100, help='Function number to stop at.')
     args = parser.parse_args()
-
-    NUM_PROCESSES=16
 
     # hyperparams:
     DIM = args.dim
@@ -35,8 +34,8 @@ if __name__ == "__main__":
     # optimized problem
     BOUNDS = Bounds(-100, 100)
     FUNCS = {
-        2013: [CECObjectiveFunction(2013, n, DIM) for n in range(args.start_from, 29)],
-        2017: [CECObjectiveFunction(2017, n, DIM) for n in range(args.start_from, 30)],
+        2013: [CECObjectiveFunction(2013, n, DIM) for n in range(args.start_from, min(args.stop_at + 1, 29))],
+        2017: [CECObjectiveFunction(2017, n, DIM) for n in range(args.start_from, min(args.stop_at + 1, 30))],
     }
     TARGET = 0.0
 
@@ -45,12 +44,12 @@ if __name__ == "__main__":
 
         cmaes_optimizer = CmaEs(POPSIZE, SIGMA0)
         cmaes_results = cmaes_optimizer.run_optimization(
-            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=NUM_PROCESSES
+            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL
         )
 
         knn_optimizer = KnnCmaEs(POPSIZE, SIGMA0, NUM_NEIGHBORS)
         knn_results = knn_optimizer.run_optimization(
-            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=NUM_PROCESSES
+            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL
         )
 
         dump_to_pickle(
