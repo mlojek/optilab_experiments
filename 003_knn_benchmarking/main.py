@@ -25,7 +25,7 @@ if __name__ == "__main__":
     # hyperparams:
     DIM = args.dim
     POPSIZE = DIM * 2
-    NUM_NEIGHBORS = 10 * POPSIZE
+    NUM_NEIGHBORS = [m * POPSIZE for m in [2, 5, 10, 20, 30, 50]]
     NUM_RUNS = 51
     CALL_BUDGET = 1e4 * DIM
     TOL = 1e-8
@@ -41,18 +41,21 @@ if __name__ == "__main__":
 
     for func in FUNCS[args.year]:
         print(func.name)
+        results = []
 
         cmaes_optimizer = CmaEs(POPSIZE, SIGMA0)
         cmaes_results = cmaes_optimizer.run_optimization(
             NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL
         )
+        results.append(cmaes_results)
 
-        knn_optimizer = KnnCmaEs(POPSIZE, SIGMA0, NUM_NEIGHBORS)
-        knn_results = knn_optimizer.run_optimization(
-            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL
-        )
+        for knn_neighbors in NUM_NEIGHBORS:
+            knn_optimizer = KnnCmaEs(POPSIZE, SIGMA0, knn_neighbors)
+            knn_results = knn_optimizer.run_optimization(
+                NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL
+            )
+            results.append(knn_results)
 
         dump_to_pickle(
-            [cmaes_results, knn_results], f"003_knn_benchmark_{func.name}_{DIM}.pkl"
+            results, f"003_knn_benchmark_{func.name}_{DIM}.pkl"
         )
-        exit(0)
