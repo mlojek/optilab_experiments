@@ -25,11 +25,13 @@ if __name__ == "__main__":
     # hyperparams:
     DIM = args.dim
     POPSIZE = DIM * 2
-    NUM_NEIGHBORS = [m * POPSIZE for m in [2, 5, 10, 20, 30, 50]]
+    NUM_NEIGHBORS = DIM + 2
+    BUFFER_SIZES = [m * POPSIZE for m in [2, 5, 10, 20, 30, 50]]
     NUM_RUNS = 51
     CALL_BUDGET = 1e4 * DIM
     TOL = 1e-8
     SIGMA0 = 1
+    NUM_PROCESSES = 16
 
     # optimized problem
     BOUNDS = Bounds(-100, 100)
@@ -45,14 +47,14 @@ if __name__ == "__main__":
 
         cmaes_optimizer = CmaEs(POPSIZE, SIGMA0)
         cmaes_results = cmaes_optimizer.run_optimization(
-            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL
+            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=NUM_PROCESSES
         )
         results.append(cmaes_results)
 
-        for knn_neighbors in NUM_NEIGHBORS:
-            knn_optimizer = KnnCmaEs(POPSIZE, SIGMA0, knn_neighbors)
+        for buffer_size in BUFFER_SIZES:
+            knn_optimizer = KnnCmaEs(POPSIZE, SIGMA0, NUM_NEIGHBORS, buffer_size)
             knn_results = knn_optimizer.run_optimization(
-                NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL
+                NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=NUM_PROCESSES
             )
             results.append(knn_results)
 
