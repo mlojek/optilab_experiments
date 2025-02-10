@@ -20,6 +20,7 @@ if __name__ == "__main__":
     parser.add_argument("dim", type=int, help="Dimensionality of benchmark functions.")
     parser.add_argument('--start_from', type=int, default=1, help='Function number to start from.')
     parser.add_argument('--stop_at', type=int, default=100, help='Function number to stop at.')
+    parser.add_argument('--num_processes', type=int, default=1, help='Number of concurrent processes to use.')
     args = parser.parse_args()
 
     # hyperparams:
@@ -31,7 +32,6 @@ if __name__ == "__main__":
     CALL_BUDGET = 1e4 * DIM
     TOL = 1e-8
     SIGMA0 = 1
-    NUM_PROCESSES = 16
 
     # optimized problem
     BOUNDS = Bounds(-100, 100)
@@ -47,14 +47,14 @@ if __name__ == "__main__":
 
         cmaes_optimizer = CmaEs(POPSIZE, SIGMA0)
         cmaes_results = cmaes_optimizer.run_optimization(
-            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=NUM_PROCESSES
+            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
         )
         results.append(cmaes_results)
 
         for buffer_size in BUFFER_SIZES:
             knn_optimizer = KnnCmaEs(POPSIZE, SIGMA0, NUM_NEIGHBORS, buffer_size)
             knn_results = knn_optimizer.run_optimization(
-                NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=NUM_PROCESSES
+                NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
             )
             results.append(knn_results)
 
