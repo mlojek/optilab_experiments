@@ -42,7 +42,7 @@ if __name__ == "__main__":
     TARGET = 0.0
 
     for func in FUNCS[args.year]:
-        print(func.name)
+        print(func.metadata.name)
         results = []
 
         cmaes_optimizer = CmaEs(POPSIZE, SIGMA0)
@@ -59,5 +59,5 @@ if __name__ == "__main__":
             results.append(knn_results)
 
         dump_to_pickle(
-            results, f"003_knn_benchmark_{func.name}_{DIM}.pkl"
+            results, f"003_knn_benchmark_{func.metadata.name}_{DIM}.pkl"
         )

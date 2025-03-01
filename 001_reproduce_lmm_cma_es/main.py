@@ -15,6 +15,7 @@ if __name__ == "__main__":
     CALL_BUDGET = 1e4 * DIM
     TOL = 1e-10
     SIGMA0 = 1
+    NUM_PROCESSES = 12
 
     # optimized problem
     BOUNDS = Bounds(-10, 10)
@@ -23,11 +24,11 @@ if __name__ == "__main__":
 
     # optimize using CMA-ES
     cmaes_optimizer = CmaEs(POPSIZE, SIGMA0)
-    cmaes_runs = cmaes_optimizer.run_optimization(NUM_RUNS, FUNC, BOUNDS, CALL_BUDGET, TOL, TARGET)
+    cmaes_runs = cmaes_optimizer.run_optimization(NUM_RUNS, FUNC, BOUNDS, CALL_BUDGET, TOL, TARGET, num_processes=NUM_PROCESSES)
 
     # optimize using LMM-CMA-ES
     lmm_optimizer = LmmCmaEs(POPSIZE, SIGMA0, 2)
-    lmm_runs = lmm_optimizer.run_optimization(NUM_RUNS, FUNC, BOUNDS, CALL_BUDGET, TOL, TARGET)
+    lmm_runs = lmm_optimizer.run_optimization(NUM_RUNS, FUNC, BOUNDS, CALL_BUDGET, TOL, TARGET, num_processes=NUM_PROCESSES)
 
     # save results to pickle
-    dump_to_pickle([cmaes_runs, lmm_runs], f'001_reproduce_lmm_cma_es_{FUNC.name}_{DIM}.pkl')
+    dump_to_pickle([cmaes_runs, lmm_runs], f'001_reproduce_lmm_cma_es_{FUNC.metadata.name}_{DIM}.pkl')
