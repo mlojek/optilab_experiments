@@ -7,7 +7,7 @@ import argparse
 from optilab.data_classes import Bounds
 from optilab.functions.benchmarks import CECObjectiveFunction
 from optilab.utils import dump_to_pickle
-from optilab.optimizers import CmaEs, KnnCmaEs
+from optilab.optimizers import CmaEs, KnnCmaEs, LmmCmaEs
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -21,6 +21,7 @@ if __name__ == "__main__":
     parser.add_argument('--start_from', type=int, default=1, help='Function number to start from.')
     parser.add_argument('--stop_at', type=int, default=100, help='Function number to stop at.')
     parser.add_argument('--num_processes', type=int, default=1, help='Number of concurrent processes to use.')
+    parser.add_argument('--with_lmm', action='store_true', help='If specified, LMM-CMA-ES will also be ran.')
     args = parser.parse_args()
 
     # hyperparams:
@@ -46,13 +47,23 @@ if __name__ == "__main__":
         results = []
 
         cmaes_optimizer = CmaEs(POPSIZE, SIGMA0)
+        print(cmaes_optimizer.metadata.name)
         cmaes_results = cmaes_optimizer.run_optimization(
             NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
         )
         results.append(cmaes_results)
 
+        if args.with_lmm:
+            lmm_optimizer = LmmCmaEs(POPSIZE, SIGMA0, 2)
+            print(lmm_optimizer.metadata.name)
+            lmm_results = lmm_optimizer.run_optimization(
+                NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
+            )
+            results.append(lmm_results)
+
         for buffer_size in BUFFER_SIZES:
             knn_optimizer = KnnCmaEs(POPSIZE, SIGMA0, NUM_NEIGHBORS, buffer_size)
+            print(knn_optimizer.metadata.name)
             knn_results = knn_optimizer.run_optimization(
                 NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
             )
