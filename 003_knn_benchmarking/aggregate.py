@@ -20,34 +20,30 @@ def process_pickles(directory_path):
 
             with open(file_path, "rb") as f:
                 runs = pickle.load(f)
+                this_file = []
 
                 for optimization_run in runs:
                     this_run = optimization_run.stats()
 
-                    print(this_run)
-                    
-                    this_run = this_run[
-                        ["model", "function", "y_median", "y_iqr"]
-                    ]
+                    this_run = this_run[["model", "function", "y_median", "y_iqr"]]
 
-                    print(this_run)
+                    this_file.append(this_run)
 
-                    this_run = this_run.rename(
-                        columns={
-                            "y_median": this_run["function"] + "_median",
-                            "y_iqr": this_run["function"] + "_iqr",
-                        }
-                    )
+                this_file = pd.concat(this_file, axis="rows")
 
-                    print(this_run)
-                    
-                    this_run.drop(columns=["function"])
-                    this_run = this_run.set_index("model").T
+                this_file = this_file.rename(
+                    columns={
+                        "y_median": this_run["function"][0] + "_median",
+                        "y_iqr": this_run["function"][0] + "_iqr",
+                    }
+                )
 
-                    frames.append(this_run)
+                this_file = this_file.drop(columns=["function"])
+                this_file = this_file.set_index("model").T
 
-    df = pd.concat(frames, ignore_index=True)
-    df = df.reset_index(drop=True)
+                frames.append(this_file)
+
+    df = pd.concat(frames)
     return df
 
 
@@ -61,4 +57,4 @@ if __name__ == "__main__":
     result_df = process_pickles(args.pickle_directory)
     result_df.to_csv("aggregated_results.csv")
 
-    print(tabulate(result_df, tablefmt="github"))
+    print(tabulate(result_df, headers=result_df.columns, tablefmt="github"))
