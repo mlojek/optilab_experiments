@@ -14,7 +14,7 @@ from tqdm import tqdm
 def process_pickles(directory_path):
     frames = []
 
-    for file_name in tqdm(os.listdir(directory_path)):
+    for file_name in tqdm(sorted(os.listdir(directory_path))):
         if file_name.endswith(".pkl"):
             file_path = os.path.join(directory_path, file_name)
 
@@ -50,11 +50,12 @@ def process_pickles(directory_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "pickle_directory", help="Path to directory containing result pickles."
+        "pickle_directory",
+        help="Path to directory containing result pickles."
     )
     args = parser.parse_args()
 
     result_df = process_pickles(args.pickle_directory)
-    result_df.to_csv("aggregated_results.csv")
+    result_df.to_csv(os.path.join(args.pickle_directory, "aggregated_results.csv"))
 
     print(tabulate(result_df, headers=result_df.columns, tablefmt="github"))
