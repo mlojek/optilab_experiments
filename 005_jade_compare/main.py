@@ -90,8 +90,3 @@ if __name__ == '__main__':
             )
 
     print(tabulate(aggregate_pvalues(pvalues_aggregation_df, args.significance), headers='keys', tablefmt='github',))
-
-    pvalues_aggregation_df.to_csv(
-        "aggregated_pvalues.csv", index=False
-    )
-
