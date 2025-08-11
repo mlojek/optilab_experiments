@@ -75,6 +75,7 @@ if __name__ == "__main__":
         cmaes_results = cmaes_optimizer.run_optimization(
             NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
         )
+        cmaes_results.remove_x()
         results.append(cmaes_results)
 
         for buffer_size in BUFFER_SIZES:
@@ -83,6 +84,7 @@ if __name__ == "__main__":
             knn_results = knn_optimizer.run_optimization(
                 NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
             )
+            knn_results.remove_x()
             results.append(knn_results)
 
         dump_to_pickle(results, f"006_knn_benchmark_{func.metadata.name}_{DIM}.pkl")
