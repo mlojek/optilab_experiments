@@ -7,6 +7,7 @@ import argparse
 from optilab.data_classes import Bounds
 from optilab.functions.benchmarks import CECObjectiveFunction
 from optilab.utils import dump_to_pickle
+import numpy as np
 from optilab.optimizers import CmaEs, KnnCmaEs, LmmCmaEs
 
 if __name__ == "__main__":
@@ -26,7 +27,7 @@ if __name__ == "__main__":
 
     # hyperparams:
     DIM = args.dim
-    POPSIZE = DIM * 2
+    POPSIZE = int(4 + np.floor(3 * np.log(DIM)))
     NUM_NEIGHBORS = DIM + 2
     BUFFER_SIZES = [m * POPSIZE for m in [2, 5, 10, 20, 30, 50]]
     NUM_RUNS = 51
