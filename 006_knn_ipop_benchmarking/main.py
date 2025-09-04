@@ -87,4 +87,4 @@ if __name__ == "__main__":
             knn_results.remove_x()
             results.append(knn_results)
 
-        dump_to_pickle(results, f"006_knn_benchmark_{func.metadata.name}_{DIM}.pkl")
+        dump_to_pickle(results, f"006_knn_benchmark_{func.metadata.name}_{DIM}.pkl", zstd_compression=None)
