@@ -48,7 +48,6 @@ if __name__ == '__main__':
 
     # get the intersection of all keys
     common_keys = set(stats_dfs.keys()) & set(y_pvalues_dfs.keys()) & set(evals_pvalues_dfs.keys())
-    print(f'Common keys: {common_keys}')
     
     # join all the dataframes like this: {key: (stats_df, y_pvalues_df, evals_pvalues_df)
     combined_dfs = {k: (stats_dfs[k], y_pvalues_dfs[k], evals_pvalues_dfs[k]) for k in sorted(common_keys)}
@@ -65,14 +64,14 @@ if __name__ == '__main__':
     )
 
     for key, (stats_df, y_pvalues_df, evals_pvalues_df) in combined_dfs.items():
-        print(key)
+        print(f"# File {key}")
         
         # add stats to aggregation
         stats_to_concat = pd.DataFrame(stats_df, columns=stats_to_aggregate_df.columns)
         stats_to_aggregate_df = pd.concat(
             [stats_to_aggregate_df, stats_to_concat], axis=0
         )
-        
+
         # print stats
         stats_evals = stats_df.filter(like="evals_", axis=1)
         stats_y = stats_df.filter(like="y_", axis=1)
