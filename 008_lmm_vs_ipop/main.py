@@ -7,7 +7,7 @@ import argparse
 import numpy as np
 from optilab.data_classes import Bounds
 from optilab.functions.benchmarks import CECObjectiveFunction
-from optilab.optimizers import IpopCmaEs, LmmIpopCmaEs
+from optilab.optimizers import IpopCmaEs, LmmIpopCmaEs, LmmCmaEs
 from optilab.utils import dump_to_pickle
 
 if __name__ == "__main__":
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         cmaes_results.remove_x()
         results.append(cmaes_results)
 
-        lmm_optimizer = LmmIpopCmaEs(POPSIZE, POLYNOMIAL_DIM)
+        lmm_optimizer = LmmCmaEs(POPSIZE, 10, POLYNOMIAL_DIM)
         print(lmm_optimizer.metadata.name)
         lmm_results = lmm_optimizer.run_optimization(
             NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes

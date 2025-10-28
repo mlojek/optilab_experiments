@@ -11,6 +11,8 @@ from optilab.optimizers import CmaEs, Optimizer
 import numpy as np
 import faiss
 import argparse
+import pandas as pd
+from tqdm import tqdm
 
 
 class KNN_Prober(SurrogateObjectiveFunction):
@@ -121,12 +123,12 @@ class KKN_Y_IPOP(CmaEs):
             {"num_neighbors": num_neighbors, "buffer_size": buffer_size},
         )
 
-
     def get_sum_tallies(self):
         sum_below = sum(t[0] for t in self.tallies)
         sum_in = sum(t[1] for t in self.tallies)
         sum_over = sum(t[2] for t in self.tallies)
         sum_total = sum_below + sum_in + sum_over
+        # assert sum_total > 0
         return sum_below / sum_total, sum_in / sum_total, sum_over / sum_total
 
     # pylint: disable=duplicate-code
@@ -177,6 +179,7 @@ class KKN_Y_IPOP(CmaEs):
                     )
                     for r in results.points:
                         prober(r)
+                    
                     tally = prober.get_tally()
                     self.tallies.append(tally)
 
@@ -204,37 +207,67 @@ if __name__ == "__main__":
         help="Dimensionality of benchmark functions.",
     )
     parser.add_argument(
-        "function",
+        "--start_from",
         type=int,
         default=1,
-        help="Function number to run.",
+        help="Function number to start from.",
     )
     parser.add_argument(
-        "buffer_multiplier",
+        "--stop_at",
         type=int,
         default=100,
-        help="Buffer size as a multiplier of popsize.",
+        help="Function number to stop at.",
     )
     args = parser.parse_args()
 
     # optimized problem
     DIM = args.dim
     BOUNDS = Bounds(-100, 100)
-    FUNC = CECObjectiveFunction(args.year, args.function, DIM)
+    FUNCS = {
+        2013: [
+            CECObjectiveFunction(2013, n, DIM)
+            for n in range(args.start_from, min(args.stop_at + 1, 29))
+        ],
+        2017: [
+            CECObjectiveFunction(2017, n, DIM)
+            for n in range(args.start_from, min(args.stop_at + 1, 30))
+        ],
+    }
     TARGET = 0.0
 
     # hyperparams:
     POPSIZE = int(4 + np.floor(3 * np.log(DIM)))
     NUM_NEIGHBORS = DIM + 2
     BUFFER_SIZES = [m * POPSIZE for m in [2, 5, 10, 20, 30, 50]]
-    NUM_RUNS = 5
+    NUM_RUNS = 51
     CALL_BUDGET = 1e4 * DIM
     TOL = 1e-8
 
-    knn_optimizer = KKN_Y_IPOP(POPSIZE, NUM_NEIGHBORS, args.buffer_multiplier * POPSIZE)
-    print(knn_optimizer.metadata.name)
+    results = []
 
-    for _ in range(NUM_RUNS):
-        knn_optimizer.optimize(FUNC, BOUNDS, CALL_BUDGET, TOL, TARGET)
+    for func in FUNCS[args.year]:
+        fname = func.metadata.name
+        print(fname)
 
-    print(knn_optimizer.get_sum_tallies())
+        for buffer_size in BUFFER_SIZES:
+            print(f"buffer_size={buffer_size}")
+            knn_optimizer = KKN_Y_IPOP(POPSIZE, NUM_NEIGHBORS, buffer_size)
+
+            for _ in tqdm(range(NUM_RUNS)):
+                knn_optimizer.optimize(func, BOUNDS, CALL_BUDGET, TOL, TARGET)
+
+            tally = knn_optimizer.get_sum_tallies()
+
+            results.append(
+                {
+                    "function": fname,
+                    "buffer_size": buffer_size,
+                    "in_range": tally[1],
+                }
+            )
+
+        df = pd.DataFrame(results)
+        results_df = df.pivot(index="function", columns="buffer_size", values="in_range")
+        results_df = results_df.reindex(columns=BUFFER_SIZES)
+
+        results_df.to_csv("knn_y_range_ipop_results.csv")
