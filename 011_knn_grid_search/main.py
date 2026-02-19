@@ -19,6 +19,7 @@ import os
 import numpy as np
 import optuna
 from scipy.stats import mannwhitneyu
+from pathlib import Path
 
 from optilab.data_classes import Bounds
 from optilab.functions.benchmarks import CECObjectiveFunction
@@ -60,7 +61,7 @@ def objective(
     optimizer = KnnIpopCmaEs(popsize, k, bufsize)
     num_improvements = 0
 
-    for func_num in range(1, 29):
+    for func_num in range(10, 12):
         func = CECObjectiveFunction(2013, func_num, dim)
         baseline = baseline_results[func_num - 1]
 
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--baseline",
-        type=str,
+        type=Path,
         default=None,
         help="Path to baseline pickle (default: baseline_{dim}d.pkl).",
     )
@@ -157,6 +158,7 @@ if __name__ == "__main__":
             trial, baseline_results, DIM, POPSIZE, args.num_processes
         ),
         n_trials=args.n_trials,
+        show_progress_bar=True,
     )
 
     print("\n" + "=" * 60)
