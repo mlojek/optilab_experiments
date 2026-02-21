@@ -72,16 +72,31 @@ def create_surrogates(
     ]
 
 
+def _mahalanobis_distances(
+    xs: np.ndarray, m: np.ndarray, cov: np.ndarray
+) -> np.ndarray:
+    """
+    Compute Mahalanobis distance of each row of *xs* from *m* under *cov*.
+    """
+    cov_inv = np.linalg.inv(cov)
+    diff = xs - m
+    # (n, d) @ (d, d) -> (n, d), then element-wise dot with diff -> (n,)
+    return np.sqrt(np.einsum("ij,jk,ik->i", diff, cov_inv, diff))
+
+
 def sample_population(
     m: np.ndarray,
     cov: np.ndarray,
     pop_size: int,
     bounds: Bounds,
     function: CECObjectiveFunction,
+    *,
+    max_mahalanobis: float | None = None,
+    min_mahalanobis: float | None = None,
 ) -> PointList:
     """
-    Sample a population from N(m, cov), reflect into bounds, and evaluate
-    with the real objective function.
+    Sample a population from N(m, cov), optionally filter by Mahalanobis
+    distance, reflect into bounds, and evaluate with the real objective.
 
     Args:
         m: Mean vector.
@@ -89,11 +104,35 @@ def sample_population(
         pop_size: Number of points to sample.
         bounds: Search space bounds.
         function: The real objective function to evaluate points.
+        max_mahalanobis: If set, keep only points with Mahalanobis distance
+            <= this value (rejection sampling).
+        min_mahalanobis: If set, keep only points with Mahalanobis distance
+            > this value (rejection sampling).
 
     Returns:
         PointList of evaluated points.
     """
-    raw_xs = np.random.multivariate_normal(m, cov, size=pop_size)
+    need_filter = max_mahalanobis is not None or min_mahalanobis is not None
+
+    if need_filter:
+        cov_inv = np.linalg.inv(cov)
+        collected = []
+        max_attempts = 200 * pop_size  # safety cap
+        attempts = 0
+        while len(collected) < pop_size and attempts < max_attempts:
+            batch = np.random.multivariate_normal(m, cov, size=pop_size)
+            dists = _mahalanobis_distances(batch, m, cov)
+            mask = np.ones(len(batch), dtype=bool)
+            if max_mahalanobis is not None:
+                mask &= dists <= max_mahalanobis
+            if min_mahalanobis is not None:
+                mask &= dists > min_mahalanobis
+            collected.extend(batch[mask])
+            attempts += pop_size
+        raw_xs = np.array(collected[:pop_size])
+    else:
+        raw_xs = np.random.multivariate_normal(m, cov, size=pop_size)
+
     points = []
     for x in raw_xs:
         p = Point(x=x)

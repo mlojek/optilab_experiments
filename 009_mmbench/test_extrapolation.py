@@ -2,9 +2,10 @@
 Experiment 009, Script 3: Test surrogate extrapolation accuracy.
 
 For each (m, sigma, C) record in the dataset:
-  - Training set is sampled from N(m, sigma^2 * C)  (same as interpolation)
-  - Test set is sampled from N(m, (2*sigma)^2 * C) = N(m, 4*sigma^2 * C)
-    (wider distribution to test out-of-distribution generalization)
+  - Training set is sampled from N(m, sigma^2 * C) with Mahalanobis distance <= 1
+    (within one sigma of the mean)
+  - Test set is sampled from N(m, sigma^2 * C) with Mahalanobis distance > 1
+    (beyond one sigma, testing out-of-distribution generalization)
 
 Evaluates each surrogate's prediction accuracy on the test set using MAPE
 and Spearman rank correlation.
@@ -36,7 +37,7 @@ def evaluate_record(
     """
     Evaluate all surrogates on one dataset record (extrapolation).
 
-    Training from N(m, sigma^2 * C), testing from N(m, 4*sigma^2 * C).
+    Training within 1 sigma, testing beyond 1 sigma (same covariance).
 
     Args:
         record: Dict with function_num, dim, m, sigma, C.
@@ -52,12 +53,15 @@ def evaluate_record(
     C = record["C"]
 
     func = CECObjectiveFunction(2013, function_num, dim)
-    train_cov = (sigma**2) * C
-    test_cov = (2 * sigma) ** 2 * C  # 4 * sigma^2 * C
+    cov = (sigma**2) * C
 
     try:
-        train_set = sample_population(m, train_cov, pop_size, BOUNDS, func)
-        test_set = sample_population(m, test_cov, pop_size, BOUNDS, func)
+        train_set = sample_population(
+            m, cov, pop_size, BOUNDS, func, max_mahalanobis=1.0
+        )
+        test_set = sample_population(
+            m, cov, pop_size, BOUNDS, func, min_mahalanobis=1.0
+        )
     except (np.linalg.LinAlgError, ValueError) as e:
         print(
             f"  WARNING: f{function_num:02d} dim={dim} sigma={sigma:.4f} "

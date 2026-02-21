@@ -1,5 +1,5 @@
 """
-Benchmarking of IPOP-CMA-ES with Top-Half KNN metamodel on CEC2013/CEC2017 benchmark.
+Benchmarking of Top-Half KNN-IPOP-CMA-ES with different K values on CEC2013/CEC2017 benchmark.
 """
 
 import argparse
@@ -56,12 +56,11 @@ if __name__ == "__main__":
             for n in range(args.start_from, min(args.stop_at + 1, 30))
         ],
     }
-    TARGET = 0.0
 
-    # hyperparams:
+    # hyperparams
     POPSIZE = int(4 + np.floor(3 * np.log(DIM)))
-    NUM_NEIGHBORS = DIM + 2
-    BUFFER_SIZES = [m * POPSIZE for m in [60, 70, 80, 100]]
+    BUFFER_SIZE = 60 * POPSIZE
+    K_VALUES = [1, 2, 3, DIM // 2]
     NUM_RUNS = 51
     CALL_BUDGET = 1e4 * DIM
     TOL = 1e-8
@@ -70,21 +69,27 @@ if __name__ == "__main__":
         print(func.metadata.name)
         results = []
 
+        # baseline: plain IPOP-CMA-ES
         cmaes_optimizer = IpopCmaEs(POPSIZE)
         print(cmaes_optimizer.metadata.name)
         cmaes_results = cmaes_optimizer.run_optimization(
-            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
+            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes,
         )
         cmaes_results.remove_x()
         results.append(cmaes_results)
 
-        for buffer_size in BUFFER_SIZES:
-            knn_optimizer = TopHalfKnnIpopCmaEs(POPSIZE, NUM_NEIGHBORS, buffer_size)
+        # Top-Half KNN-IPOP-CMA-ES with different K values
+        for k in K_VALUES:
+            knn_optimizer = TopHalfKnnIpopCmaEs(POPSIZE, k, BUFFER_SIZE)
             print(knn_optimizer.metadata.name)
             knn_results = knn_optimizer.run_optimization(
-                NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
+                NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes,
             )
             knn_results.remove_x()
             results.append(knn_results)
 
-        dump_to_pickle(results, f"012_th_knn_benchmark_{func.metadata.name}_{DIM}.pkl", zstd_compression=None)
+        dump_to_pickle(
+            results,
+            f"013_th_knn_k_{func.metadata.name}_{DIM}.pkl",
+            zstd_compression=None,
+        )

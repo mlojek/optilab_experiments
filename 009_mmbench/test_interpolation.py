@@ -2,9 +2,9 @@
 Experiment 009, Script 2: Test surrogate interpolation accuracy.
 
 For each (m, sigma, C) record in the dataset, samples two populations
-from N(m, sigma^2 * C) — one for training, one for testing. Evaluates
-each surrogate's prediction accuracy on the test set using MAPE and
-Spearman rank correlation.
+from N(m, sigma^2 * C) with Mahalanobis distance <= 1 (within one sigma)
+— one for training, one for testing. Evaluates each surrogate's prediction
+accuracy on the test set using MAPE and Spearman rank correlation.
 """
 
 import argparse
@@ -51,8 +51,12 @@ def evaluate_record(
 
     # Ensure covariance matrix is positive semi-definite
     try:
-        train_set = sample_population(m, cov, pop_size, BOUNDS, func)
-        test_set = sample_population(m, cov, pop_size, BOUNDS, func)
+        train_set = sample_population(
+            m, cov, pop_size, BOUNDS, func, max_mahalanobis=1.0
+        )
+        test_set = sample_population(
+            m, cov, pop_size, BOUNDS, func, max_mahalanobis=1.0
+        )
     except (np.linalg.LinAlgError, ValueError) as e:
         print(
             f"  WARNING: f{function_num:02d} dim={dim} sigma={sigma:.4f} "
