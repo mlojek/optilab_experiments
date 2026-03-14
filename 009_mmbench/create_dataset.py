@@ -1,79 +1,14 @@
-"""
-Experiment 009, Script 1: Create metamodel benchmark dataset.
-
-Runs a plain CMA-ES on CEC 2013 functions (f01-f28) and collects
-(m, sigma, C) tuples from representative iterations. Saves to JSON.
-"""
-
 import argparse
 import json
 from functools import partial
 from multiprocessing.pool import Pool
-from typing import Any, Dict, List
+from typing import Dict, List
 
-import cma
 import numpy as np
 
-from optilab.data_classes import Bounds, PointList
-from optilab.functions import ObjectiveFunction
 from optilab.functions.benchmarks import CECObjectiveFunction
-from optilab.optimizers.cma_es import CmaEs
-
-
-class DataCollectingCmaEs(CmaEs):
-    """
-    CMA-ES variant that records (m, sigma, C) at each generation.
-    """
-
-    def __init__(self, population_size: int, sigma0: float):
-        super().__init__(population_size, sigma0)
-        self.collected_states: List[Dict[str, Any]] = []
-
-    def optimize(
-        self,
-        function: ObjectiveFunction,
-        bounds: Bounds,
-        call_budget: int,
-        tolerance: float,
-        target: float = 0.0,
-    ) -> PointList:
-        """
-        Run optimization while collecting CMA-ES internal state each generation.
-        """
-        es = self._spawn_cmaes(
-            bounds,
-            function.metadata.dim,
-            self.metadata.population_size,
-            self.metadata.hyperparameters["sigma0"],
-        )
-
-        res_log = PointList(points=[])
-        self.collected_states = []
-
-        while not self._stop(
-            es,
-            res_log,
-            self.metadata.population_size,
-            call_budget,
-            target,
-            tolerance,
-        ):
-            # Record state before the generation
-            self.collected_states.append(
-                {
-                    "m": np.array(es.mean).copy(),
-                    "sigma": float(es.sigma),
-                    "C": np.array(es.C).copy(),
-                }
-            )
-
-            solutions = PointList.from_list(es.ask())
-            results = PointList(points=[function(x) for x in solutions.points])
-            res_log.extend(results)
-            x, y = results.pairs()
-            es.tell(x, y)
-
-        return res_log
+from optilab.data_classes import Bounds
+from sampler_cma_es import SamplerCmaEs
 
 
 def collect_for_function(
@@ -103,7 +38,7 @@ def collect_for_function(
     bounds = Bounds(-100, 100)
     func = CECObjectiveFunction(2013, function_num, dim)
 
-    optimizer = DataCollectingCmaEs(popsize, sigma0)
+    optimizer = SamplerCmaEs(popsize, sigma0)
     optimizer.optimize(func, bounds, int(call_budget), tol)
 
     states = optimizer.collected_states
@@ -111,11 +46,12 @@ def collect_for_function(
         print(f"  WARNING: f{function_num:02d} dim={dim} — no states collected!")
         return []
 
-    # Sample evenly spaced indices across the run
-    if len(states) <= num_samples:
-        selected = states
-    else:
+    if len(states) >= num_samples:
         indices = np.linspace(0, len(states) - 1, num_samples, dtype=int)
+        selected = [states[i] for i in indices]
+    else:
+        # Sample with replacement to always reach num_samples
+        indices = np.random.choice(len(states), size=num_samples, replace=True)
         selected = [states[i] for i in indices]
 
     records = []
@@ -141,12 +77,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Create metamodel benchmark dataset from CMA-ES runs on CEC 2013."
     )
-    parser.add_argument("dim", type=int, help="Dimensionality (e.g. 10 or 30).")
     parser.add_argument(
-        "--start_from", type=int, default=1, help="First function number (default: 1)."
+        "dim",
+        type=int,
+        help="Dimensionality (e.g. 10 or 30).",
     )
     parser.add_argument(
-        "--stop_at", type=int, default=28, help="Last function number (default: 28)."
+        "--start_from",
+        type=int,
+        default=1,
+        help="First function number (default: 1).",
+    )
+    parser.add_argument(
+        "--stop_at",
+        type=int,
+        default=28,
+        help="Last function number (default: 28).",
     )
     parser.add_argument(
         "--num_processes",

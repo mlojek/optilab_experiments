@@ -6,6 +6,7 @@ import json
 from typing import Dict, List, Tuple
 
 import numpy as np
+from scipy.stats import multivariate_normal as mvnorm
 from scipy.stats import spearmanr
 
 from optilab.data_classes import Bounds, Point, PointList
@@ -13,6 +14,7 @@ from optilab.functions.benchmarks import CECObjectiveFunction
 from optilab.functions.surrogate import (
     KNNSurrogateObjectiveFunction,
     LocallyWeightedPolynomialRegression,
+    MLPSurrogateObjectiveFunction,
     PolynomialRegression,
     SurrogateObjectiveFunction,
     XGBoostSurrogateObjectiveFunction,
@@ -67,6 +69,12 @@ def create_surrogates(
     return [
         ("KNN", KNNSurrogateObjectiveFunction(num_neighbors=num_neighbors_knn)),
         ("LWR", lwr),
+        (
+            "MLP",
+            MLPSurrogateObjectiveFunction(
+                hidden_layer_sizes=(32,),
+            ),
+        ),
         ("PolyReg", PolynomialRegression(degree=2)),
         ("XGBoost", XGBoostSurrogateObjectiveFunction()),
     ]
@@ -77,11 +85,20 @@ def _mahalanobis_distances(
 ) -> np.ndarray:
     """
     Compute Mahalanobis distance of each row of *xs* from *m* under *cov*.
+
+    Uses scipy's multivariate_normal logpdf (Cholesky-based) to avoid
+    explicit matrix inversion, which is numerically fragile for near-singular
+    covariance matrices.
+
+    logpdf(x) = -0.5 * (k*log(2π) + log|cov| + d_M²)
+    => d_M = sqrt(max(0, -2*logpdf - k*log(2π) - log|cov|))
     """
-    cov_inv = np.linalg.inv(cov)
-    diff = xs - m
-    # (n, d) @ (d, d) -> (n, d), then element-wise dot with diff -> (n,)
-    return np.sqrt(np.einsum("ij,jk,ik->i", diff, cov_inv, diff))
+    dist = mvnorm(mean=m, cov=cov, allow_singular=True)
+    logpdf_vals = dist.logpdf(xs)
+    k = m.shape[0]
+    _, logdet = np.linalg.slogdet(cov)
+    d_M_sq = np.maximum(0.0, -2.0 * logpdf_vals - k * np.log(2 * np.pi) - logdet)
+    return np.sqrt(d_M_sq)
 
 
 def sample_population(
@@ -115,7 +132,6 @@ def sample_population(
     need_filter = max_mahalanobis is not None or min_mahalanobis is not None
 
     if need_filter:
-        cov_inv = np.linalg.inv(cov)
         collected = []
         max_attempts = 200 * pop_size  # safety cap
         attempts = 0
@@ -129,6 +145,12 @@ def sample_population(
                 mask &= dists > min_mahalanobis
             collected.extend(batch[mask])
             attempts += pop_size
+        if len(collected) < pop_size:
+            raise ValueError(
+                f"Rejection sampling collected only {len(collected)}/{pop_size} "
+                f"points after {max_attempts} attempts "
+                f"(max_mahalanobis={max_mahalanobis}, min_mahalanobis={min_mahalanobis})"
+            )
         raw_xs = np.array(collected[:pop_size])
     else:
         raw_xs = np.random.multivariate_normal(m, cov, size=pop_size)
@@ -161,9 +183,7 @@ def evaluate_surrogate(
     surrogate.train(train_set)
 
     y_true = np.array(test_set.y(), dtype=np.float64)
-    y_pred = np.array(
-        [surrogate(p).y for p in test_set.points], dtype=np.float64
-    )
+    y_pred = np.array([surrogate(p).y for p in test_set.points], dtype=np.float64)
 
     # MAPE: Mean Absolute Percentage Error
     eps = 1e-10
