@@ -70,15 +70,16 @@ if __name__ == "__main__":
         print(func.metadata.name)
         results = []
 
-        cmaes_optimizer = IpopCmaEs(POPSIZE)
-        print(cmaes_optimizer.metadata.name)
-        cmaes_results = cmaes_optimizer.run_optimization(
-            NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
-        )
-        cmaes_results.remove_x()
-        results.append(cmaes_results)
+        # cmaes_optimizer = IpopCmaEs(POPSIZE)
+        # print(cmaes_optimizer.metadata.name)
+        # cmaes_results = cmaes_optimizer.run_optimization(
+        #     NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes
+        # )
+        # cmaes_results.remove_x()
+        # results.append(cmaes_results)
 
-        lmm_optimizer = LmmCmaEs(POPSIZE, 10, POLYNOMIAL_DIM)
+        # lmm_optimizer = LmmCmaEs(POPSIZE, 10, POLYNOMIAL_DIM)
+        lmm_optimizer = LmmIpopCmaEs(POPSIZE, POLYNOMIAL_DIM)
         print(lmm_optimizer.metadata.name)
         lmm_results = lmm_optimizer.run_optimization(
             NUM_RUNS, func, BOUNDS, CALL_BUDGET, TOL, num_processes=args.num_processes

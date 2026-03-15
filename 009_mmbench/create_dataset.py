@@ -8,7 +8,7 @@ import numpy as np
 
 from optilab.functions.benchmarks import CECObjectiveFunction
 from optilab.data_classes import Bounds
-from sampler_cma_es import SamplerCmaEs
+from sampler_ipop_cma_es import SamplerIpopCmaEs
 
 
 def collect_for_function(
@@ -38,13 +38,12 @@ def collect_for_function(
     bounds = Bounds(-100, 100)
     func = CECObjectiveFunction(2013, function_num, dim)
 
-    optimizer = SamplerCmaEs(popsize, sigma0)
+    optimizer = SamplerIpopCmaEs(popsize, sigma0)
     optimizer.optimize(func, bounds, int(call_budget), tol)
 
     states = optimizer.collected_states
-    if len(states) == 0:
-        print(f"  WARNING: f{function_num:02d} dim={dim} — no states collected!")
-        return []
+
+    assert len(states) > num_samples
 
     if len(states) >= num_samples:
         indices = np.linspace(0, len(states) - 1, num_samples, dtype=int)

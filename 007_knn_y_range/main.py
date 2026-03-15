@@ -23,14 +23,14 @@ class KNN_Prober(SurrogateObjectiveFunction):
     def __init__(
         self,
         num_neighbors: int,
-        train_set: PointList = None,
+        train_set: PointList | None = None,
     ) -> None:
         """
         Class constructor.
 
         Args:
-            num_neighbors (int): Number of closest neighbors to use in regression.
-            train_set (PointList): Training data for the model.
+            num_neighbors: Number of closest neighbors to use in regression.
+            train_set: Training data for the model.
         """
         self.num_neighbors = num_neighbors
 
@@ -53,7 +53,7 @@ class KNN_Prober(SurrogateObjectiveFunction):
         Train the FAISS-based KNN Surrogate function with provided data.
 
         Args:
-            train_set (PointList): Training data for the model.
+            train_set: Training data for the model.
         """
         super().train(train_set)
 
@@ -70,10 +70,10 @@ class KNN_Prober(SurrogateObjectiveFunction):
         Estimate the function value at a given point using kNN regression.
 
         Args:
-            point (Point): Point to estimate.
+            point: Point to estimate.
 
         Returns:
-            Point: Estimated value of the function at the given point.
+            Estimated value of the function at the given point.
         """
         super().__call__(point)
 
