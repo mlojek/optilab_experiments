@@ -9,6 +9,7 @@ import argparse
 from functools import partial
 from multiprocessing.pool import Pool
 from typing import Dict, List
+import os
 
 import numpy as np
 import pandas as pd
@@ -70,20 +71,23 @@ if __name__ == "__main__":
         default=0,
         help="N for train/test sets (default: dim*(dim+3)//2+2, i.e. LWR neighbor count).",
     )
-    parser.add_argument("--num_processes", type=int, default=1)
+    parser.add_argument("--num_processes", type=int, default=os.cpu_count())
     parser.add_argument("--output", type=str, default="interpolation_results.csv")
     args = parser.parse_args()
 
     dataset = load_dataset(args.dataset)
-    print(f"Loaded {len(dataset)} records from {args.dataset}")
+    n_proc = args.num_processes
+    print(f"Loaded {len(dataset)} records from {args.dataset} | workers={n_proc}")
 
     worker = partial(evaluate_record, pop_size=args.pop_size)
     all_results: List[Dict] = []
 
-    if args.num_processes > 1:
-        with Pool(processes=args.num_processes) as pool:
-            for batch in pool.map(worker, dataset):
+    if n_proc > 1:
+        with Pool(processes=n_proc) as pool:
+            for i, batch in enumerate(pool.imap_unordered(worker, dataset)):
                 all_results.extend(batch)
+                if (i + 1) % 10 == 0:
+                    print(f"  Processed {i + 1}/{len(dataset)} records...")
     else:
         for i, rec in enumerate(dataset):
             all_results.extend(worker(rec))

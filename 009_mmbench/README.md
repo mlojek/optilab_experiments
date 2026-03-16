@@ -12,3 +12,81 @@ What is the best N to use here? make it a default.
 Then for each each metamodel we run either interpolation or extrapolation on all 51 states. then we collect both median and mean MAPE and spearman rank corellation. We store it in CSV file. separately for interpolation and extrapolation.
 
 Finally we calculate for each metamodel the average medians of MAPE and spearman on all28 functions for a given dimensionality.
+
+
+
+
+
+=== Interpolation | dim=10 ===
+               mape  spearman
+surrogate                    
+KNN        0.098568  0.574896
+LWR        0.367553  0.475138
+PolyReg    0.367553  0.475116
+XGBoost    0.104664  0.527715
+
+=== Interpolation | dim=30 ===
+               mape  spearman
+surrogate                    
+KNN        0.300271  0.481453
+LWR        0.240611  0.536298
+PolyReg    0.240611  0.536298
+XGBoost    0.291814  0.451952
+
+=== Extrapolation | dim=10 ===
+               mape  spearman
+surrogate                    
+KNN        0.106227  0.398356
+LWR        0.570793  0.437026
+PolyReg    0.570793  0.437067
+XGBoost    0.122981  0.414269
+
+=== Extrapolation | dim=30 ===
+               mape  spearman
+surrogate                    
+KNN        0.213104  0.376380
+LWR        0.277982  0.507841
+PolyReg    0.277982  0.507859
+XGBoost    0.208619  0.383957
+
+
+
+
+-------------------------------------------
+interpolation 10d
+
+               mape  spearman
+surrogate                    
+KNN        0.120236  0.605416
+LWR        2.622000  0.416756
+MLP        0.145149  0.617797
+PolyReg    0.114397  0.630142
+XGBoost    0.118466  0.588216
+
+
+extrapolation 10d
+               mape  spearman
+surrogate                    
+KNN        0.119760  0.435024
+LWR        5.948165  0.370242
+MLP        0.213099  0.571109
+PolyReg    0.179805  0.607596
+XGBoost    0.119944  0.454644
+
+interpolation 30d
+               mape  spearman
+surrogate                    
+KNN        0.312014  0.551461
+LWR        6.542540  0.344808
+MLP        0.149132  0.619832
+PolyReg    0.107207  0.661408
+XGBoost    0.256256  0.600972
+
+extrapolation 30d
+                mape  spearman
+surrogate                     
+KNN         0.372970  0.445494
+LWR        14.146074  0.330608
+MLP         0.145200  0.604465
+PolyReg     0.120522  0.653363
+XGBoost     0.327867  0.520725
