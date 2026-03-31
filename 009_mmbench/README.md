@@ -17,39 +17,6 @@ Finally we calculate for each metamodel the average medians of MAPE and spearman
 
 
 
-=== Interpolation | dim=10 ===
-               mape  spearman
-surrogate                    
-KNN        0.098568  0.574896
-LWR        0.367553  0.475138
-PolyReg    0.367553  0.475116
-XGBoost    0.104664  0.527715
-
-=== Interpolation | dim=30 ===
-               mape  spearman
-surrogate                    
-KNN        0.300271  0.481453
-LWR        0.240611  0.536298
-PolyReg    0.240611  0.536298
-XGBoost    0.291814  0.451952
-
-=== Extrapolation | dim=10 ===
-               mape  spearman
-surrogate                    
-KNN        0.106227  0.398356
-LWR        0.570793  0.437026
-PolyReg    0.570793  0.437067
-XGBoost    0.122981  0.414269
-
-=== Extrapolation | dim=30 ===
-               mape  spearman
-surrogate                    
-KNN        0.213104  0.376380
-LWR        0.277982  0.507841
-PolyReg    0.277982  0.507859
-XGBoost    0.208619  0.383957
-
-
 
 
 -------------------------------------------
