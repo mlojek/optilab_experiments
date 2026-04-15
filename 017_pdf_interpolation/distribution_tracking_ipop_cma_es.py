@@ -11,6 +11,7 @@ sigma-dependent scaling of the raw PDF, making the threshold meaningful regardle
 of search space size or convergence stage.
 """
 
+from collections import deque
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -42,9 +43,10 @@ class DistributionSnapshot:
 
 @dataclass
 class GenerationRecord:
-    """Interpolation/extrapolation counts for a single generation."""
+    """Interpolation/extrapolation counts and sigma for a single generation."""
     n_interpolated: int
     n_extrapolated: int
+    sigma: float
 
     @property
     def total(self) -> int:
@@ -93,6 +95,7 @@ def run_distribution_tracking_ipop(
     tolerance: float,
     population_size: Optional[int] = None,
     pdf_threshold: float = 0.005,
+    history_size: int = 10,
     target: float = 0.0,
 ) -> List[GenerationRecord]:
     """
@@ -107,6 +110,8 @@ def run_distribution_tracking_ipop(
         pdf_threshold: Normalised-PDF threshold in (0, 1] above which a point is
             considered interpolatable. Equivalent to a Mahalanobis distance cutoff
             of sqrt(-2 * ln(threshold)) — e.g. 0.005 ≈ 3.26 std deviations.
+        history_size: Number of most recent population distributions to compare against.
+            -1 keeps the full history (all previous generations).
         target: Global optimum value (default 0.0).
 
     Returns:
@@ -119,7 +124,8 @@ def run_distribution_tracking_ipop(
     log_threshold = np.log(pdf_threshold)  # compute once; used as -0.5*maha² cutoff
     res_log = PointList(points=[])
     generation_records: List[GenerationRecord] = []
-    distribution_history: List[DistributionSnapshot] = []
+    maxlen = None if history_size == -1 else history_size
+    distribution_history: deque = deque(maxlen=maxlen)
     current_pop_size = population_size
 
     while not _stop(res_log, current_pop_size, call_budget, target, tolerance):
@@ -132,6 +138,7 @@ def run_distribution_tracking_ipop(
             # 1. Snapshot the distribution that will generate this generation's points.
             #    Pre-compute precision matrix so classification is O(d²) per point.
             snapshot = DistributionSnapshot.from_cmaes(es)
+            current_sigma = es.sigma
 
             # 2. Sample the generation.
             solutions_x = es.ask()
@@ -142,7 +149,7 @@ def run_distribution_tracking_ipop(
                 for x in solutions_x
             )
             generation_records.append(
-                GenerationRecord(n_interpolated, len(solutions_x) - n_interpolated)
+                GenerationRecord(n_interpolated, len(solutions_x) - n_interpolated, current_sigma)
             )
 
             # 4. Evaluate and update CMA-ES.

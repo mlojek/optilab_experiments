@@ -26,7 +26,7 @@ from distribution_tracking_ipop_cma_es import GenerationRecord, run_distribution
 
 def _run_single(args):
     """Worker function for multiprocessing."""
-    function, bounds, call_budget, tolerance, population_size, pdf_threshold = args
+    function, bounds, call_budget, tolerance, population_size, pdf_threshold, history_size = args
     return run_distribution_tracking_ipop(
         function,
         bounds,
@@ -34,6 +34,7 @@ def _run_single(args):
         tolerance,
         population_size=population_size,
         pdf_threshold=pdf_threshold,
+        history_size=history_size,
     )
 
 
@@ -81,6 +82,12 @@ def plot_function_results(
         vals = [run[g] for run in run_cumulative_pcts if g < len(run)]
         cumulative_pct.append(np.mean(vals))
 
+    # Mean sigma per generation, averaged across runs.
+    mean_sigma = []
+    for g in range(max_gens):
+        vals = [run[g].sigma for run in runs if g < len(run)]
+        mean_sigma.append(np.mean(vals))
+
     # Overall % across all runs.
     total_interp = sum(rec.n_interpolated for run in runs for rec in run)
     total_pts = sum(rec.total for run in runs for rec in run)
@@ -93,8 +100,18 @@ def plot_function_results(
     ax.set_xlabel("Generation")
     ax.set_ylabel("% interpolated")
     ax.set_ylim(0, 100)
+
+    ax2 = ax.twinx()
+    ax2.plot(gens, mean_sigma, color="red", linewidth=0.8, label="sigma")
+    ax2.set_yscale("log")
+    ax2.set_ylabel("sigma (log₁₀ scale)", color="red")
+    ax2.tick_params(axis="y", colors="red")
+
+    lines1, labels1 = ax.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, labels1 + labels2)
+
     ax.set_title(f"{func_name} {dim}D — {overall_pct:.1f}% of all points interpolated")
-    ax.legend()
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
@@ -128,6 +145,12 @@ if __name__ == "__main__":
         default=0.005,
         help="PDF threshold for classifying a point as interpolatable (default: 0.005).",
     )
+    parser.add_argument(
+        "--history_size",
+        type=int,
+        default=10,
+        help="Number of most recent populations to compare against (default: 10). Use -1 for all.",
+    )
     args = parser.parse_args()
 
     DIM = args.dim
@@ -136,13 +159,13 @@ if __name__ == "__main__":
     CALL_BUDGET = int(1e4 * DIM)
     TOL = 1e-8
 
-    functions = [CECObjectiveFunction(2013, n, DIM) for n in range(1, 29)]
+    functions = [CECObjectiveFunction(2013, n, DIM) for n in [16, 27, 28]]
 
     for func in functions:
         print(f"\n{func.metadata.name}")
 
         worker_args = [
-            (func, BOUNDS, CALL_BUDGET, TOL, POPSIZE, args.pdf_threshold)
+            (func, BOUNDS, CALL_BUDGET, TOL, POPSIZE, args.pdf_threshold, args.history_size)
             for _ in range(args.num_runs)
         ]
 
