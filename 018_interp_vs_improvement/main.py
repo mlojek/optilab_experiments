@@ -15,10 +15,18 @@ For each CEC2013 function:
 
 import argparse
 import csv
+import gc
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Tuple
+
+# Must be set before numpy/BLAS are imported in worker processes.
+# Without this, each worker spawns 10 BLAS threads → N_processes × 10 threads
+# compete for 10 cores → scheduler thrashes → appears to hang.
+def _apply_blas_thread_limit(num_processes: int) -> None:
+    if num_processes > 1:
+        for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
+            os.environ[var] = "1"
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,10 +40,11 @@ from optilab.utils import dump_to_pickle, load_from_pickle
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../017_pdf_interpolation"))
 from distribution_tracking_ipop_cma_es import GenerationRecord  # noqa: E402
 
-FunctionResults = Tuple[float, float, float, float]  # interp_pct, ipop_median, knn_median, improvement_factor
+# interp_pct, ipop_median, knn_median, improvement_factor
+FunctionResults = tuple[float, float, float, float]
 
 
-def overall_interpolation_pct(generation_records_per_run) -> float:
+def overall_interpolation_pct(generation_records_per_run: list) -> float:
     total_interpolated = sum(rec.n_interpolated for run in generation_records_per_run for rec in run)
     total_points = sum(rec.total for run in generation_records_per_run for rec in run)
     return total_interpolated / total_points * 100 if total_points > 0 else 0.0
@@ -46,23 +55,75 @@ def load_function_interpolation_pct(func_num: int, dim: int, data_dir: Path) -> 
     return overall_interpolation_pct(load_from_pickle(pkl_path))
 
 
-def benchmark_optimizer(optimizer, func, bounds, call_budget, tolerance, num_runs, num_processes):
-    return optimizer.run_optimization(
-        num_runs, func, bounds, call_budget, tolerance, num_processes=num_processes
-    )
-
-
 def median_best_y(optimization_run) -> float:
     return float(np.median(optimization_run.bests_y(raw_values=False)))
+
+
+def run_and_get_median(optimizer, func, bounds, call_budget, tolerance, num_runs, num_processes, pkl_path: Path) -> float:
+    """Run optimizer, save pkl, extract median, then free memory immediately."""
+    run = optimizer.run_optimization(num_runs, func, bounds, call_budget, tolerance, num_processes=num_processes)
+    run.remove_x()
+    dump_to_pickle(run, str(pkl_path), zstd_compression=None)
+    median = median_best_y(run)
+    del run
+    gc.collect()
+    return median
+
+
+def load_median_from_pkl(pkl_path: Path) -> float:
+    run = load_from_pickle(pkl_path)
+    median = median_best_y(run)
+    del run
+    gc.collect()
+    return median
+
+
+def load_medians_from_stats_csv(
+    stats_csv: Path, ipop_col: str, knn_col: str
+) -> dict[str, tuple[float, float]]:
+    """Return {func_name: (ipop_median, knn_median)} from an aggregated_stats.csv
+    (wide format: columns are optimizer names, rows are functions × stats)."""
+    medians: dict[str, tuple[float, float]] = {}
+    with stats_csv.open(newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row["stat"] != "y_median":
+                continue
+            func_name = row["function"]
+            if ipop_col not in row:
+                raise KeyError(f"Column '{ipop_col}' not found in {stats_csv}")
+            if knn_col not in row:
+                raise KeyError(f"Column '{knn_col}' not found in {stats_csv}. Available: {list(row.keys())}")
+            medians[func_name] = (float(row[ipop_col]), float(row[knn_col]))
+    return medians
+
+
+def load_medians_from_stats_dir(
+    stats_dir: Path, ipop_col: str, knn_col: str
+) -> dict[str, tuple[float, float]]:
+    """Return {func_name: (ipop_median, knn_median)} from a directory of per-function
+    stats CSVs (long format: each row is one optimizer, columns include model/y_median)."""
+    medians: dict[str, tuple[float, float]] = {}
+    for path in sorted(stats_dir.glob("*.stats.csv")):
+        with path.open(newline="") as f:
+            reader = csv.DictReader(f)
+            rows = {row["model"]: row for row in reader}
+        if ipop_col not in rows:
+            raise KeyError(f"Model '{ipop_col}' not found in {path}")
+        if knn_col not in rows:
+            raise KeyError(f"Model '{knn_col}' not found in {path}. Available: {list(rows.keys())}")
+        func_name = rows[ipop_col]["function"]
+        medians[func_name] = (float(rows[ipop_col]["y_median"]), float(rows[knn_col]["y_median"]))
+    return medians
 
 
 def knn_improvement_factor(ipop_median: float, knn_median: float) -> float:
     return ipop_median / knn_median
 
 
-def save_results_csv(results: Dict[str, FunctionResults], dim: int) -> str:
-    csv_path = f"018_results_{dim}D.csv"
-    with open(csv_path, "w", newline="") as f:
+def save_results_csv(results: dict[str, FunctionResults], dim: int) -> Path:
+    csv_path = Path(f"018_results_{dim}D.csv")
+    with csv_path.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["func_name", "interp_pct", "ipop_median", "knn_median", "improvement_factor"])
         for func_name, (interp_pct, ipop_median, knn_median, improvement) in results.items():
@@ -81,13 +142,13 @@ def short_function_label(func_name: str) -> str:
 
 
 def save_scatter_plot(
-    results: Dict[str, FunctionResults],
+    results: dict[str, FunctionResults],
     dim: int,
     num_neighbors: int,
     buffer_size: int,
     buf_multiplier: int,
     num_runs: int,
-) -> str:
+) -> Path:
     interpolation_pcts = [v[0] for v in results.values()]
     improvement_factors = [v[3] for v in results.values()]
     func_names = list(results.keys())
@@ -114,7 +175,7 @@ def save_scatter_plot(
     ax.legend()
     plt.tight_layout()
 
-    plot_path = f"018_interp_vs_improvement_{dim}D.png"
+    plot_path = Path(f"018_interp_vs_improvement_{dim}D.png")
     plt.savefig(plot_path, dpi=150)
     plt.close()
     return plot_path
@@ -127,6 +188,8 @@ if __name__ == "__main__":
     parser.add_argument("--dim", type=int, default=10)
     parser.add_argument("--num_runs", type=int, default=51)
     parser.add_argument("--num_processes", type=int, default=1)
+    parser.add_argument("--start_from", type=int, default=1, help="First CEC function number to run (default: 1)")
+    parser.add_argument("--stop_at", type=int, default=28, help="Last CEC function number to run (default: 28)")
     parser.add_argument(
         "--buf_multiplier",
         type=int,
@@ -145,7 +208,27 @@ if __name__ == "__main__":
         default=Path(__file__).parent / "../017_pdf_interpolation/last10",
         help="Directory containing experiment 017 interpolation pkl files.",
     )
+    parser.add_argument(
+        "--stats_csv",
+        type=Path,
+        default=None,
+        help="Path to aggregated_stats.csv (wide format). "
+             "When provided, medians are read directly instead of running optimizers.",
+    )
+    parser.add_argument(
+        "--stats_dir",
+        type=Path,
+        default=None,
+        help="Path to a directory of per-function *.stats.csv files (long format). "
+             "Alternative to --stats_csv.",
+    )
+    parser.add_argument(
+        "--remove_outliers",
+        action="store_true",
+        help="Drop functions whose improvement factor is outside [0.1, 10] (one order of magnitude from 1).",
+    )
     args = parser.parse_args()
+    _apply_blas_thread_limit(args.num_processes)
 
     DIM = args.dim
     BOUNDS = Bounds(-100, 100)
@@ -155,11 +238,28 @@ if __name__ == "__main__":
     NUM_NEIGHBORS = args.k_neighbors if args.k_neighbors != -1 else DIM + 2
     BUFFER_SIZE = args.buf_multiplier * POPSIZE
 
+    IPOP_COL = "ipop-cma-es"
+    KNN_COL = f"knn{NUM_NEIGHBORS}b{BUFFER_SIZE}-ipop-cma-es"
     print(f"DIM={DIM}, POPSIZE={POPSIZE}, K={NUM_NEIGHBORS}, BUF={BUFFER_SIZE}")
+    print(f"IPOP column: {IPOP_COL}  |  KNN column: {KNN_COL}")
 
-    results: Dict[str, FunctionResults] = {}
+    if args.stats_csv and args.stats_dir:
+        print("ERROR: specify only one of --stats_csv or --stats_dir")
+        raise SystemExit(1)
 
-    for func_num in range(1, 29):
+    preloaded_medians: dict[str, tuple[float, float]] | None = None
+    if args.stats_csv is not None:
+        print(f"Loading medians from {args.stats_csv}")
+        preloaded_medians = load_medians_from_stats_csv(args.stats_csv, IPOP_COL, KNN_COL)
+        print(f"  Loaded {len(preloaded_medians)} functions")
+    elif args.stats_dir is not None:
+        print(f"Loading medians from {args.stats_dir}")
+        preloaded_medians = load_medians_from_stats_dir(args.stats_dir, IPOP_COL, KNN_COL)
+        print(f"  Loaded {len(preloaded_medians)} functions")
+
+    results: dict[str, FunctionResults] = {}
+
+    for func_num in range(args.start_from, args.stop_at + 1):
         func = CECObjectiveFunction(2013, func_num, DIM)
         func_name = func.metadata.name
         print(f"\n[{func_num:02d}/28] {func_name}")
@@ -171,28 +271,47 @@ if __name__ == "__main__":
             continue
         print(f"  Interpolation %: {interp_pct:.1f}%")
 
-        ipop = IpopCmaEs(population_size=POPSIZE)
-        print(f"  Running IPOP-CMA-ES ({args.num_runs} runs)...")
-        ipop_run = benchmark_optimizer(ipop, func, BOUNDS, CALL_BUDGET, TOL, args.num_runs, args.num_processes)
-        ipop_run.remove_x()
-        dump_to_pickle(ipop_run, f"018_ipop_{func_name}_{DIM}D.pkl", zstd_compression=None)
+        if preloaded_medians is not None:
+            if func_name not in preloaded_medians:
+                print(f"  WARNING: {func_name} not in stats CSV — skipping")
+                continue
+            ipop_median, knn_median = preloaded_medians[func_name]
+            print(f"  (from CSV) IPOP median: {ipop_median:.3e} | KNN median: {knn_median:.3e}")
+        else:
+            ipop_pkl = Path(f"018_ipop_{func_name}_{DIM}D.pkl")
+            if ipop_pkl.exists():
+                print(f"  Loading IPOP-CMA-ES results from {ipop_pkl}")
+                ipop_median = load_median_from_pkl(ipop_pkl)
+            else:
+                ipop = IpopCmaEs(population_size=POPSIZE)
+                print(f"  Running IPOP-CMA-ES ({args.num_runs} runs)...")
+                ipop_median = run_and_get_median(ipop, func, BOUNDS, CALL_BUDGET, TOL, args.num_runs, args.num_processes, ipop_pkl)
 
-        knn = KnnIpopCmaEs(population_size=POPSIZE, num_neighbors=NUM_NEIGHBORS, buffer_size=BUFFER_SIZE)
-        print(f"  Running KNN-IPOP-CMA-ES ({args.num_runs} runs)...")
-        knn_run = benchmark_optimizer(knn, func, BOUNDS, CALL_BUDGET, TOL, args.num_runs, args.num_processes)
-        knn_run.remove_x()
-        dump_to_pickle(knn_run, f"018_knn_{func_name}_{DIM}D.pkl", zstd_compression=None)
+            knn_pkl = Path(f"018_knn_{func_name}_{DIM}D.pkl")
+            if knn_pkl.exists():
+                print(f"  Loading KNN-IPOP-CMA-ES results from {knn_pkl}")
+                knn_median = load_median_from_pkl(knn_pkl)
+            else:
+                knn = KnnIpopCmaEs(population_size=POPSIZE, num_neighbors=NUM_NEIGHBORS, buffer_size=BUFFER_SIZE)
+                print(f"  Running KNN-IPOP-CMA-ES ({args.num_runs} runs)...")
+                knn_median = run_and_get_median(knn, func, BOUNDS, CALL_BUDGET, TOL, args.num_runs, args.num_processes, knn_pkl)
 
-        ipop_median = median_best_y(ipop_run)
-        knn_median = median_best_y(knn_run)
         improvement = knn_improvement_factor(ipop_median, knn_median)
-        print(f"  IPOP median: {ipop_median:.3e} | KNN median: {knn_median:.3e} | factor: {improvement:.3f}")
+        print(f"  factor: {improvement:.3f}")
 
         results[func_name] = (interp_pct, ipop_median, knn_median, improvement)
 
     if not results:
         print("No results to plot.")
         raise SystemExit(1)
+
+    if args.remove_outliers:
+        before = len(results)
+        results = {
+            name: vals for name, vals in results.items()
+            if 0.1 <= vals[3] <= 10.0
+        }
+        print(f"Outlier removal: {before - len(results)} dropped, {len(results)} remaining")
 
     csv_path = save_results_csv(results, DIM)
     print(f"\nSaved {csv_path}")

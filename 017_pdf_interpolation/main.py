@@ -159,7 +159,7 @@ if __name__ == "__main__":
     CALL_BUDGET = int(1e4 * DIM)
     TOL = 1e-8
 
-    functions = [CECObjectiveFunction(2013, n, DIM) for n in [16, 27, 28]]
+    functions = [CECObjectiveFunction(2013, n, DIM) for n in range(1, 29)]
 
     for func in functions:
         print(f"\n{func.metadata.name}")
